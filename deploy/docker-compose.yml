@@ -1,0 +1,158 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ads_marketplace
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata2:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.go
+      args:
+        SERVICE: api
+    ports:
+      - "4519:3000"
+    environment:
+      POSTGRES_DSN: postgres://postgres:postgres@postgres:5432/ads_marketplace?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      BOT_TOKEN: ${BOT_TOKEN}
+      BOT_INTERNAL_URL: http://bot:8081
+      TON_HOT_WALLET_ADDRESS: ${TON_HOT_WALLET_ADDRESS:-}
+      TON_NETWORK: ${TON_NETWORK:-testnet}
+      PLATFORM_FEE_BPS: ${PLATFORM_FEE_BPS:-300}
+      HOLD_PERIOD_SECONDS: ${HOLD_PERIOD_SECONDS:-3600}
+      ADMIN_TELEGRAM_IDS: ${ADMIN_TELEGRAM_IDS:-}
+      SUPPORT_TELEGRAM_IDS: ${SUPPORT_TELEGRAM_IDS:-}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      API_PORT: "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.go
+      args:
+        SERVICE: worker
+    environment:
+      POSTGRES_DSN: postgres://postgres:postgres@postgres:5432/ads_marketplace?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      BOT_TOKEN: ${BOT_TOKEN}
+      BOT_INTERNAL_URL: http://bot:8081
+      TON_HOT_WALLET_ADDRESS: ${TON_HOT_WALLET_ADDRESS:-}
+      PLATFORM_FEE_BPS: ${PLATFORM_FEE_BPS:-300}
+      HOLD_PERIOD_SECONDS: ${HOLD_PERIOD_SECONDS:-3600}
+      DEAL_TIMEOUT_SUBMITTED_SECONDS: ${DEAL_TIMEOUT_SUBMITTED_SECONDS:-86400}
+      DEAL_TIMEOUT_ACCEPTED_SECONDS: ${DEAL_TIMEOUT_ACCEPTED_SECONDS:-86400}
+      DEAL_TIMEOUT_CREATIVE_SECONDS: ${DEAL_TIMEOUT_CREATIVE_SECONDS:-172800}
+      DEAL_TIMEOUT_PAYMENT_SECONDS: ${DEAL_TIMEOUT_PAYMENT_SECONDS:-3600}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  stats:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.go
+      args:
+        SERVICE: stats
+    environment:
+      POSTGRES_DSN: postgres://postgres:postgres@postgres:5432/ads_marketplace?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      TME_FETCH_TIMEOUT_MS: ${TME_FETCH_TIMEOUT_MS:-10000}
+      TME_FETCH_MAX_RETRIES: ${TME_FETCH_MAX_RETRIES:-3}
+      USERBOT_INTERNAL_URL: http://userbot:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ton-indexer:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.go
+      args:
+        SERVICE: ton-indexer
+    environment:
+      POSTGRES_DSN: postgres://postgres:postgres@postgres:5432/ads_marketplace?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      TON_HOT_WALLET_ADDRESS: ${TON_HOT_WALLET_ADDRESS:-}
+      TON_NETWORK: ${TON_NETWORK:-testnet}
+      LITE_SERVER_HOST: ${LITE_SERVER_HOST:-}
+      LITE_SERVER_PORT: ${LITE_SERVER_PORT:-4443}
+      LITE_SERVER_KEY: ${LITE_SERVER_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  bot:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.bot
+    ports:
+      - "8081:8081"
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      POSTGRES_DSN: postgresql://postgres:postgres@postgres:5432/ads_marketplace
+      REDIS_URL: redis://redis:6379/0
+      BOT_INTERNAL_PORT: "8081"
+      USE_WEBHOOK: "false"
+      USERBOT_INTERNAL_URL: http://userbot:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      userbot:
+        condition: service_started
+
+  userbot:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.userbot
+    ports:
+      - "8082:8082"
+    environment:
+      TG_API_ID: ${TG_API_ID}
+      TG_API_HASH: ${TG_API_HASH}
+      TG_SESSION_STRING: ${TG_SESSION_STRING:-}
+      TG_PHONE_NUMBER: ${TG_PHONE_NUMBER:-}
+      POSTGRES_DSN: postgresql://postgres:postgres@postgres:5432/ads_marketplace
+      USERBOT_PORT: "8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata2:

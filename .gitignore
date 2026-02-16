@@ -1,0 +1,56 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/ton-indexer
+/api
+/worker
+/stats
+
+# Go
+/vendor/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+
+# Environment
+.env
+deploy/.env
+userbot/.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Session files (Pyrogram)
+*.session
+*.session-journal
+
+# Logs
+*.log
+
+# Redis dump
+dump.rdb
+
+# Postgres data
+pgdata/
